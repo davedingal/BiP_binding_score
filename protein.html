@@ -1,16 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>BiP-binding Motif Specificity</title>
+  <title>BiP-binding Motif Score</title>
   <meta charset="utf-8">
   <script src = "https://d3js.org/d3.v4.min.js"></script>
   <style type="text/css">
+    .prompt {
+      margin: 0;
+    }
+
     #protein {
-      width: 300px;
-      height: 10em;
+      width: 90em;
+      height: 5em;
       resize: none;
     }
 
+    .run-button {
+      font-size: 1.2em;
+      margin: 0 0 0.5em 0;
+    }
     #results {
       margin: 0 auto;
       min-width: 400px;
@@ -26,29 +34,43 @@
     }
 
     .source {
-      width: 100%;
-      height: 10em;
+      width: 90%;
+      height: 75%;
       resize: none;
+    }
+
+    .container {
+      flex-wrap: nowrap;
+      display: flex;
+      justify-content: space-around;
+    }
+
+    .flex-child {
+      width: 100%;
     }
   </style>
 </head>
 <body>
   <div>
-    <textarea id='protein'>Vg1,black,PFPLSESLNGTNHAILQTLVHSFDPKGTPQPCCVPIKL
-Cyc,blue,PNPLGEELRPTNHAYMQSLLKYHHPSRVPASCCAPTRT</textarea>
+    <h2 class="prompt">Enter two protein sequences to compare</h2>
+    <!-- Adding spaces for formatting in the textarea block will throw off the parsing JS code and adding a regex to fix is a little overkill just for a formatting issue. -->
+    <textarea id='protein'>Vg1,black,------SASYYLPVTPSNVCKPRRLYIDFKDVGWQDWIIAPQGYLANYCHGECPFPLSESLNGTNHAILQTLVHSFDPKGTPQPCCVPIKLSPISMLYYDNNDNVVLRHYEDMVVDECGCR
+Cyc,blue,GPPVRSPELQRTPLHKSTTCRRVDMHVDFNQIGWGSWIVFPKKYNAYRCEGACPNPLGEELRPTNHAYMQSLLKYHHPSRVPASCCAPTRTSALSMLYYENG-EMILRHHEDMQVEECGCL</textarea>
   </div>
   <div>
-    <button onclick="handleClick()">Run</button>
+    <button class="run-button" onclick="handleClick()">Run</button>
   </div>
-  <div id="chart"></div>
-  <div>
-    <textarea class='source' id='chart_src'></textarea>
+  <div class="container">
+    <div class="flex-child">
+      <h3 class="prompt">BiP Binding Specificity Score</h3>
+      <div id="difference_score"></div>
+    </div>
+    <div class="flex-child">
+      <h4 class="prompt">SVG source code of BiP Binding Specificity Score Chart</h4>
+      <textarea class='source' id='difference_score_src'></textarea>
+    </div>
   </div>
-  <div id="chart2"></div>
-  <div>
-    <textarea class='source' id='chart2_src'></textarea>
-  </div>
-  <div id="results"></div>
+  <div class="container" id="results"></div>
 <script type="text/javascript">
 const amino_acids = {
   "W": [5,6,6,4,4,2,4],
@@ -141,11 +163,11 @@ function handleClick() {
     return;
   }
 
-  renderEverything(data);
-  renderChart2(data);
+  generateTableData(data);
+  renderDifferenceScoreChart(data);
 }
 
-function renderEverything(all) {
+function generateTableData(all) {
   document.getElementById('results').innerHTML = all.reduce((acc, { chart_data, name }) => {
     const id_name = name.replace(/\s/g, '_');
     const result_html = chart_data.reduce((s, row) => {
@@ -157,135 +179,34 @@ function renderEverything(all) {
     }, '');
 
     acc += `
-      <div>${name}</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Window #</th>
-            <th>Sequence</th>
-            <th>1</th>
-            <th>2</th>
-            <th>3</th>
-            <th>4</th>
-            <th>5</th>
-            <th>6</th>
-            <th>7</th>
-            <th>Result</th>
-          </tr>
-        </thead>
-        <tbody id='detailed_results'>
-          ${result_html}
-        </tbody>
-      </table>`;
+      <div>
+        <h2 class="prompt">${name}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Window #</th>
+              <th>Heptapeptide</th>
+              <th>1</th>
+              <th>2</th>
+              <th>3</th>
+              <th>4</th>
+              <th>5</th>
+              <th>6</th>
+              <th>7</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id='detailed_results'>
+            ${result_html}
+          </tbody>
+        </table>
+      </div>`;
 
     return acc;
   }, '');
-
-  const margin = {
-    top: 10,
-    right: 100,
-    bottom: 40,
-    left: 40
-  };
-  const width = 900;
-  const height = 450;
-  const inner_width = width - margin.left - margin.right;
-  const inner_height = height - margin.top - margin.bottom;
-
-  document.getElementById('chart').innerHTML = '';
-
-  const svg = d3.select('#chart')
-  .append('svg')
-  .attr('width', width)
-  .attr('height', height);
-
-  const d3_grouping = svg.append('g')
-  .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
-
-  const x = d3.scaleLinear()
-  .domain([1, all.reduce((acc, { chart_data }) => {
-    const max_x = chart_data[chart_data.length - 1].index;
-    return max_x > acc ? max_x : acc
-  }, 0)])
-  .range([ 0, inner_width ]);
-
-  d3_grouping.append('g')
-  .attr('transform', 'translate(0,' + inner_height + ')')
-  .call(d3.axisBottom(x));
-
-  const min = all.map(
-      ({ chart_data }) => chart_data.reduce(
-          (acc, row) => row.sum < acc ? row.sum : acc, 0
-      )
-  ).reduce((acc, min) => min < acc ? min : acc, 0);
-
-  const max = all.map(
-      ({ chart_data }) => chart_data.reduce(
-          (acc, row) => row.sum > acc ? row.sum : acc, 0
-      )
-  ).reduce((acc, max) => max > acc ? max : acc, 0);
-
-  const y = d3.scaleLinear()
-  .domain([-35, 20])
-  .range([ inner_height, 0 ]);
-
-  d3_grouping.append('g')
-  .call(d3.axisLeft(y));
-
-  svg.append('g')
-  .attr('transform', 'translate(' + (margin.left / 3) + ', ' + (margin.top + (inner_height / 2)) + ') rotate(-90)')
-  .attr('font-size', 11)
-  .attr('font-family', 'Helvetica Neue')
-  .attr('text-anchor', 'middle')
-  .append('text')
-    .attr('fill', 'black')
-    .text('BiP Binding Specificity Score');
-
-  svg.append('g')
-  .attr('transform', 'translate(' + (margin.left + (inner_width / 2)) + ', ' + (height - (margin.bottom / 4)) + ')')
-  .attr('font-size', 11)
-  .attr('font-family', 'Helvetica Neue')
-  .attr('text-anchor', 'middle')
-  .append('text')
-    .attr('fill', 'black')
-    .text('Peptide Sliding Window');
-
-  const legend = svg.append('g')
-  .attr('transform', 'translate(' + (width - margin.right + 10) + ', ' + margin.top + ')')
-  .attr('font-size', 11)
-  .attr('font-family', 'Helvetica Neue');
-
-  all.forEach(({ chart_data, color, name }, index) => {
-    const legend_line = legend.append('g')
-    .attr('transform', 'translate(0, ' + (index * 12) + ')');
-
-    legend_line.append('circle')
-    .attr('cx', 5)
-    .attr('cy', -5)
-    .attr('r', 3)
-    .attr('stroke', 'none')
-    .attr('fill', color);
-
-    const text = legend_line.append('text')
-    .attr('transform', 'translate(12, 0)')
-    .attr('fill', 'black')
-    .text(name);
-
-    d3_grouping.append('path')
-    .datum(chart_data)
-    .attr('fill', 'none')
-    .attr('stroke', color)
-    .attr('stroke-width', 1.5)
-    .attr('d', d3.line()
-      .x(d => x(d.index))
-      .y(d => y(d.sum))
-    );
-  });
-
-  document.getElementById('chart_src').innerHTML = document.getElementById('chart').innerHTML;
 }
 
-function renderChart2(all) {
+function renderDifferenceScoreChart(all) {
   const idGen = e => ({
     id: e,
     href: new URL(`#${e}`, location) + ""
@@ -305,13 +226,13 @@ function renderChart2(all) {
   const p1 = all[0];
   const p2 = all[1];
 
-  document.getElementById('chart2').innerHTML = '';
+  document.getElementById('difference_score').innerHTML = '';
 
   const above_id = idGen("above");
   const below_id = idGen("below");
 
   const curve = d3.curveStep;
-  const svg = d3.select('#chart2')
+  const svg = d3.select('#difference_score')
   .append('svg')
   .attr('width', width)
   .attr('height', height);
@@ -351,7 +272,7 @@ function renderChart2(all) {
 
   svg.append('g')
   .attr('transform', 'translate(' + (margin.left / 3) + ', ' + (margin.top + (inner_height / 2)) + ') rotate(-90)')
-  .attr('font-size', 11)
+  .attr('font-size', 14)
   .attr('font-family', 'Helvetica Neue')
   .attr('text-anchor', 'middle')
   .append('text')
@@ -360,7 +281,7 @@ function renderChart2(all) {
 
   svg.append('g')
   .attr('transform', 'translate(' + (margin.left + (inner_width / 2)) + ', ' + (height - (margin.bottom / 4)) + ')')
-  .attr('font-size', 11)
+  .attr('font-size', 14)
   .attr('font-family', 'Helvetica Neue')
   .attr('text-anchor', 'middle')
   .append('text')
@@ -369,7 +290,7 @@ function renderChart2(all) {
 
   const legend = svg.append('g')
   .attr('transform', 'translate(' + (width - margin.right + 10) + ', ' + margin.top + ')')
-  .attr('font-size', 11)
+  .attr('font-size', 14)
   .attr('font-family', 'Helvetica Neue');
 
   d3_grouping.append("clipPath")
@@ -450,7 +371,7 @@ function renderChart2(all) {
       .y(d => y(d.sum)));
   }
 
-  document.getElementById('chart2_src').innerHTML = document.getElementById('chart2').innerHTML;
+  document.getElementById('difference_score_src').innerHTML = document.getElementById('difference_score').innerHTML;
 }
 
 handleClick();
